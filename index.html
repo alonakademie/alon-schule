@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="de" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alon Schule nach dem Marille Konzept: Interaktive Übersicht</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Alon Brand Kit -->
+    <!-- Application Structure Plan: Die Anwendung ist in vier logische, interaktive Abschnitte unterteilt: 1. "Das Konzept". 2. "Projekt-Werkstatt". 3. "Ein Tag in der Schule": Zeigt nun nur noch die zwei Beispiel-Pläne. 4. "Termin-Baukasten": Enthält den Baukasten und den interaktiven Planer. Die Drag-and-Drop-Funktionalität wurde wesentlich verbessert: Es gibt jetzt eine visuelle Vorschau ("Ghost-Element") beim Ziehen, eine Kollisionserkennung, die das Überlagern von Terminen verhindert, und das Layout-Problem wurde behoben. -->
+    <!-- Visualization & Content Choices: 1. Kernkonzepte: Ziel -> Organisieren; Methode -> Interaktive Karten. 2. Projekt-Werkstatt: Ziel -> Demonstrieren; Methode -> KI-Textgenerierung. 3. Tagesablauf: Ziel -> Vergleichen; Methode -> Nebeneinanderliegende Kalenderansichten. 4. Termin-Baukasten: Ziel -> Gestalten; Methode -> Verbessertes Drag-and-Drop-Interface; Interaktion -> Nutzer zieht Termine in seinen Plan, sieht eine Live-Vorschau und erhält Feedback bei Kollisionen; Begründung -> Erhöht die Benutzerfreundlichkeit und Planungsgenauigkeit erheblich und verhindert fehlerhafte Eingaben. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Lexend', sans-serif;
+            background-color: #f5f9fb;
+            color: #032459;
+        }
+        .nav-link {
+            transition: color 0.3s, border-color 0.3s;
+            border-bottom: 2px solid transparent;
+        }
+        .nav-link:hover, .nav-link.active {
+            color: #f45e45;
+            border-color: #f45e45;
+        }
+        .concept-card {
+            transition: transform 0.3s, box-shadow 0.3s;
+            cursor: pointer;
+        }
+        .concept-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        .details {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.5s ease-in-out;
+        }
+        .details.open {
+            max-height: 500px;
+        }
+        .loader {
+            border: 4px solid #f0f0f0;
+            border-top: 4px solid #2fabdd;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .timeline-container {
+            position: relative;
+            height: 660px; /* 11 hours * 60px/hour */
+        }
+        .time-label {
+            position: absolute;
+            left: -50px;
+            width: 40px;
+            text-align: right;
+            font-size: 0.75rem;
+            color: #5a6a85;
+        }
+        .event-block {
+            position: absolute;
+            left: 0;
+            right: 10px;
+            border-radius: 0.5rem;
+            padding: 4px 8px;
+            font-size: 0.8rem;
+            line-height: 1.25;
+            overflow: hidden;
+            border: 1px solid rgba(0,0,0,0.05);
+            display: flex;
+            align-items: center;
+            z-index: 10;
+        }
+        .draggable-item {
+            cursor: grab;
+            transition: background-color 0.2s;
+        }
+        .draggable-item:active {
+            cursor: grabbing;
+        }
+        .drop-zone.drag-over {
+            background-color: #2fabdd20;
+        }
+        .kernzeit-highlight {
+            position: absolute;
+            left: 0;
+            right: 10px;
+            top: 120px; /* 10:00 */
+            height: 240px; /* 4 hours */
+            background-color: #2fabdd15;
+            z-index: 1;
+            border-left: 2px solid #2fabdd;
+            pointer-events: none;
+        }
+        #drag-preview {
+            pointer-events: none;
+            opacity: 0.6;
+            z-index: 20;
+        }
+    </style>
+</head>
+<body class="antialiased">
+
+    <header class="bg-white/80 backdrop-blur-md sticky top-0 z-50 shadow-sm">
+        <nav class="container mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex-shrink-0">
+                    <span class="text-xl font-bold text-[#032459]">Alon Schule</span>
+                </div>
+                <div class="hidden md:block">
+                    <div class="ml-10 flex items-baseline space-x-4">
+                        <a href="#konzept" class="nav-link px-3 py-2 rounded-md text-sm font-medium">Das Konzept</a>
+                        <a href="#projekt-werkstatt" class="nav-link px-3 py-2 rounded-md text-sm font-medium">Projekt-Werkstatt</a>
+                        <a href="#tagesablauf" class="nav-link px-3 py-2 rounded-md text-sm font-medium">Ein Tag in der Schule</a>
+                        <a href="#besonderheiten" class="nav-link px-3 py-2 rounded-md text-sm font-medium">Woche & Jahr</a>
+                    </div>
+                </div>
+            </div>
+        </nav>
+    </header>
+
+    <main class="container mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12">
+
+        <section id="hero" class="text-center mb-16 md:mb-24">
+            <h1 class="text-4xl md:text-6xl font-bold tracking-tight text-[#032459] mb-4">Alon Schule nach dem Marille Konzept</h1>
+            <p class="max-w-3xl mx-auto text-lg md:text-xl text-[#5a6a85]">Ein interaktiver Einblick in eine Schule, die Lernen neu denkt: individuell, praxisnah und auf die Zukunft ausgerichtet.</p>
+        </section>
+
+        <section id="konzept" class="mb-16 md:mb-24 scroll-mt-20">
+            <h2 class="text-3xl md:text-4xl font-bold text-center mb-4">Die Kernkonzepte</h2>
+            <p class="max-w-3xl mx-auto text-center text-[#5a6a85] mb-12">Das Fundament der Schule basiert auf acht Säulen. Klicken Sie auf eine Karte, um mehr zu erfahren.</p>
+            <div id="concepts-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8"></div>
+        </section>
+
+        <section id="projekt-werkstatt" class="mb-16 md:mb-24 scroll-mt-20 bg-white rounded-2xl p-8 shadow-lg">
+            <h2 class="text-3xl md:text-4xl font-bold text-center mb-4 text-[#2fabdd]">✨ Projekt-Werkstatt</h2>
+            <p class="max-w-3xl mx-auto text-center text-[#5a6a85] mb-8">Eines der Herzstücke ist das projektbasierte Lernen. Was interessiert dich? Gib ein Thema ein und unsere KI entwickelt daraus passende Projektideen im Geiste der Schule.</p>
+            <div class="max-w-xl mx-auto">
+                <div class="flex flex-col sm:flex-row gap-4">
+                    <input type="text" id="project-input" placeholder="z.B. Bienen, Roboter, Mittelalter..." class="flex-grow px-4 py-2 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-[#2fabdd]">
+                    <button id="generate-project-btn" class="bg-[#f45e45] text-white px-8 py-2 rounded-full font-semibold shadow hover:bg-opacity-90 transition flex items-center justify-center gap-2">
+                        Ideen finden
+                    </button>
+                </div>
+            </div>
+            <div id="project-output" class="mt-8">
+                 <div id="loader" class="loader hidden"></div>
+                 <div id="project-results" class="grid grid-cols-1 md:grid-cols-3 gap-6"></div>
+            </div>
+        </section>
+
+        <section id="tagesablauf" class="mb-16 md:mb-24 scroll-mt-20">
+            <h2 class="text-3xl md:text-4xl font-bold text-center mb-4">Ein Tag in der Schule: Beispiele</h2>
+            <p class="max-w-3xl mx-auto text-center text-[#5a6a85] mb-8">Vergleichen Sie die beispielhaften Tagesabläufe eines strukturierten und eines flexiblen Schülertages.</p>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-12 mt-12">
+                <div id="julius-schedule"></div>
+                <div id="ayse-schedule"></div>
+            </div>
+        </section>
+
+        <section id="baukasten-sektion" class="mb-16 md:mb-24 scroll-mt-20 bg-white rounded-2xl p-8 shadow-lg">
+             <h2 class="text-3xl md:text-4xl font-bold text-center mb-4">Gestalte deinen Tag</h2>
+             <p class="max-w-3xl mx-auto text-center text-[#5a6a85] mb-8">Ziehen Sie einen Termin aus dem Baukasten in die Spalte "Dein Plan", um Ihren individuellen Tag zu gestalten. Beachten Sie die Kernzeit von 10-14 Uhr!</p>
+             <div id="user-message" class="text-center font-semibold h-6 mb-4 transition-opacity duration-300 opacity-0"></div>
+             <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div id="appointment-toolbox">
+                    <h3 class="text-xl font-bold text-center mb-4">Termin-Baukasten</h3>
+                    <div>
+                        <h4 class="font-semibold mb-2 text-[#2fabdd]">Feste Termine (Kernzeit)</h4>
+                        <div id="fixed-events" class="space-y-2"></div>
+                    </div>
+                    <div class="mt-6">
+                        <h4 class="font-semibold mb-2 text-[#fbc928]">Flexible Angebote</h4>
+                        <div id="flexible-events" class="space-y-2"></div>
+                    </div>
+                </div>
+                <div id="user-schedule-container" class="overflow-hidden">
+                    <div id="user-schedule"></div>
+                </div>
+             </div>
+        </section>
+
+        <section id="besonderheiten" class="scroll-mt-20">
+            <h2 class="text-3xl md:text-4xl font-bold text-center mb-4">Struktur in Woche & Jahr</h2>
+            <p class="max-w-3xl mx-auto text-center text-[#5a6a85] mb-12">Über den täglichen Rhythmus hinaus geben wiederkehrende Ereignisse der Woche und dem Schuljahr eine besondere Struktur.</p>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                <div class="bg-white rounded-xl shadow p-6"><h3 class="font-bold text-xl mb-2 text-[#f45e45]">🗓️ Ausflugstag</h3><p class="text-[#5a6a85]">Einmal pro Woche (z.B. donnerstags von 9-15 Uhr) unternimmt jede Stammgruppe individuelle Ausflüge.</p></div>
+                <div class="bg-white rounded-xl shadow p-6"><h3 class="font-bold text-xl mb-2 text-[#f45e45]">🎉 Freitagsritual</h3><p class="text-[#5a6a85]">Wochenabschluss-Sitzung und ein gemeinsames Schulfest bis 14 Uhr, bei dem Lernergebnisse präsentiert werden.</p></div>
+                <div class="bg-white rounded-xl shadow p-6"><h3 class="font-bold text-xl mb-2 text-[#f45e45]">🛠️ Projektwochen</h3><p class="text-[#5a6a85]">Zwei Wochen vor den großen Ferien sind für intensive Praktika und Projektzeiten reserviert.</p></div>
+                <div class="bg-white rounded-xl shadow p-6"><h3 class="font-bold text-xl mb-2 text-[#f45e45]">🤝 Mentor*innengespräche</h3><p class="text-[#5a6a85]">Regelmäßige, anfangs wöchentliche, Gespräche mit dem persönlichen Mentor sichern die individuelle Begleitung.</p></div>
+                <div class="bg-white rounded-xl shadow p-6"><h3 class="font-bold text-xl mb-2 text-[#f45e45]">📊 Abwägungskonferenz</h3><p class="text-[#5a6a85]">Halbjährliches Treffen von Schüler*in, Mentor*in und Eltern, um Leistungsstand und Ziele zu besprechen.</p></div>
+                <div class="bg-white rounded-xl shadow p-6"><h3 class="font-bold text-xl mb-2 text-[#f45e45]">💰 Finanzierung</h3><p class="text-[#5a6a85]">Grundsätzlich kein Schulgeld. Freiwillige Beiträge sind erwünscht. Nur bei Finanzierungslücken wird ein sozial gestaffeltes, verpflichtendes Schulgeld erhoben.</p></div>
+            </div>
+        </section>
+    </main>
+    
+    <footer class="text-center py-8 mt-12 border-t border-gray-200">
+        <p class="text-[#5a6a85]">Ein flexibles Konzept für die Bildung von morgen.</p>
+    </footer>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            
+            const concepts = [
+                { icon: '🎨', title: 'Individueller Alltag & Inklusion', text: 'Flexible Stundenpläne und ein weiter Inklusionsbegriff ermöglichen personalisierte Lernwege. Die Schule ist ein diskriminierungssensibler Raum, der Vielfalt fördert.' },
+                { icon: '🤝', title: 'Mentoring-System', text: 'Jede*r Schüler*in hat eine*n persönliche*n Mentor*in für die kontinuierliche Begleitung, gemeinsame Planung des Stundenplans und Coaching bei eigenen Vorhaben.' },
+                { icon: '👨‍👩‍👧‍👦', title: 'Stammgruppen', text: 'Feste soziale Bezugsgruppen von 10-15 Personen bieten emotionale Sicherheit, fördern soziale Kompetenzen und dienen als Basis für kollaborative Projekte.' },
+                { icon: '🛠️', title: 'Projektbasiertes Lernen', text: 'Lernen ist praxis- und handlungsorientiert. In Makerspaces und realen Projekten (z.B. Bau eines Pizzaofens) wird Wissen mit konkreter Wirkung angewandt.' },
+                { icon: '💻', title: 'Digitale Lernumgebung', text: 'Eine zentrale digitale Plattform unterstützt die Angebotswahl, das Projektmanagement und die transparente Dokumentation des Lernfortschritts und der Kompetenzentwicklung.' },
+                { icon: '💡', title: 'Freiwilligkeit & Sinnhaftigkeit', text: 'Durch die Förderung intrinsischer Motivation und die Betonung persönlicher Relevanz wird die Selbstständigkeit gestärkt. Schüler*innen gestalten ihren Tag aktiv mit.' },
+                { icon: '🌱', title: 'Nachhaltigkeitsfokus', text: 'Bildung für nachhaltige Entwicklung (BNE) und ein nachhaltiger Schulbetrieb (z.B. Bio-Essen, Ökostrom) sind fest im Konzept verankert.' },
+                { icon: '💶', title: 'Finanzierungsansatz', text: 'Grundsätzlich schulgeldfrei, finanziert durch freiwillige Beiträge. Nur bei Finanzierungslücken wird ein sozial gestaffeltes, verpflichtendes Schulgeld erhoben.' }
+            ];
+
+            const conceptsGrid = document.getElementById('concepts-grid');
+            concepts.forEach(concept => {
+                const card = document.createElement('div');
+                card.className = 'concept-card bg-white rounded-xl shadow p-6 text-center';
+                card.innerHTML = `
+                    <div class="text-4xl mb-4">${concept.icon}</div>
+                    <h3 class="font-semibold text-lg mb-2 text-[#032459]">${concept.title}</h3>
+                    <div class="details text-left text-[#5a6a85] text-sm mt-4 pt-4 border-t border-gray-200">
+                        <p>${concept.text}</p>
+                    </div>
+                `;
+                conceptsGrid.appendChild(card);
+                card.addEventListener('click', () => card.querySelector('.details').classList.toggle('open'));
+            });
+
+            // --- Schedule Data and Rendering ---
+            const scheduleData = {
+                julius: {
+                    title: "Julius (Strukturiert)",
+                    events: [
+                        { name: 'Zahlenland', start: 8, end: 10, type: 'angebot' },
+                        { name: 'Stammgruppe', start: 10, end: 10.67, type: 'kernzeit' },
+                        { name: 'Leseklub', start: 10.75, end: 12, type: 'kernzeit' },
+                        { name: 'Mittagessen', start: 12, end: 13, type: 'kernzeit' },
+                        { name: 'Kreativ-Workshop', start: 13, end: 13.75, type: 'kernzeit' },
+                        { name: 'Tagesreflexion', start: 13.75, end: 14, type: 'kernzeit' },
+                        { name: 'Sport & Spiel', start: 14, end: 16, type: 'angebot' },
+                        { name: 'Spätbetreuung', start: 16, end: 18, type: 'frei' }
+                    ]
+                },
+                ayse: {
+                    title: "Ayse (Flexibel)",
+                    events: [
+                        { name: 'Freilernzeit', start: 9, end: 10, type: 'frei' },
+                        { name: 'Stammgruppe', start: 10, end: 10.67, type: 'kernzeit' },
+                        { name: 'Projekt Zeitreise', start: 10.75, end: 12, type: 'kernzeit' },
+                        { name: 'Mittagessen', start: 12, end: 13, type: 'kernzeit' },
+                        { name: 'Freilernzeit', start: 13, end: 13.75, type: 'frei' },
+                        { name: 'Tagesreflexion', start: 13.75, end: 14, type: 'kernzeit' },
+                        { name: 'Schulschluss', start: 14, end: 14, type: 'frei' }
+                    ]
+                },
+                user: {
+                    title: "Dein Plan",
+                    events: []
+                }
+            };
+
+            const eventColors = {
+                kernzeit: 'bg-[#2fabdd]/70 text-white',
+                angebot: 'bg-[#fbc928]/70 text-[#032459]',
+                frei: 'bg-gray-300/70 text-gray-800'
+            };
+            
+            function renderSchedule(personId, container) {
+                const personData = scheduleData[personId];
+                container.innerHTML = `<h3 class="text-xl font-bold text-center mb-4">${personData.title}</h3>`;
+                
+                const timelineWrapper = document.createElement('div');
+                timelineWrapper.className = 'bg-white p-4 rounded-lg shadow h-full';
+                
+                const timeline = document.createElement('div');
+                timeline.className = 'timeline-container ml-[50px]';
+                timeline.id = `${personId}-timeline`;
+                
+                if (personId === 'user') {
+                    const resetButton = document.createElement('button');
+                    resetButton.textContent = 'Zurücksetzen';
+                    resetButton.className = 'absolute -top-8 right-0 text-xs bg-[#f45e45] text-white px-2 py-1 rounded z-20';
+                    resetButton.onclick = () => {
+                        scheduleData.user.events = [];
+                        renderSchedule('user', document.getElementById('user-schedule-container'));
+                    };
+                    container.classList.add('relative');
+                    container.appendChild(resetButton);
+                    
+                    const kernzeitHighlight = document.createElement('div');
+                    kernzeitHighlight.className = 'kernzeit-highlight';
+                    timeline.appendChild(kernzeitHighlight);
+                }
+
+                for (let hour = 8; hour <= 18; hour++) {
+                    const label = document.createElement('div');
+                    label.className = 'time-label';
+                    label.textContent = `${hour}:00`;
+                    label.style.top = `${(hour - 8) * 60}px`;
+                    timeline.appendChild(label);
+                    const line = document.createElement('div');
+                    line.className = 'absolute w-full border-t border-gray-200';
+                    line.style.top = `${(hour - 8) * 60}px`;
+                    timeline.appendChild(line);
+                }
+
+                personData.events.forEach(event => {
+                    const top = (event.start - 8) * 60;
+                    let height = (event.end - event.start) * 60;
+                    if (height <= 0) height = 2;
+
+                    const block = document.createElement('div');
+                    block.className = 'event-block';
+                    block.style.top = `${top}px`;
+                    block.style.height = `${Math.max(20, height)}px`;
+                    block.classList.add(...eventColors[event.type].split(' '));
+                    block.innerHTML = `<span class="font-semibold">${event.name}</span>`;
+                    timeline.appendChild(block);
+                });
+                
+                timelineWrapper.appendChild(timeline);
+                container.appendChild(timelineWrapper);
+
+                if (personId === 'user') {
+                    addDropZoneListeners(timeline);
+                }
+            }
+            
+            renderSchedule('julius', document.getElementById('julius-schedule'));
+            renderSchedule('ayse', document.getElementById('ayse-schedule'));
+            renderSchedule('user', document.getElementById('user-schedule-container'));
+
+            // --- Drag and Drop Logic ---
+            const availableEvents = [
+                { name: 'Stammgruppe', duration: 0.67, type: 'kernzeit' },
+                { name: 'Mittagessen', duration: 1, type: 'kernzeit' },
+                { name: 'Tagesreflexion', duration: 0.25, type: 'kernzeit' },
+                { name: 'Leseklub', duration: 1.25, type: 'angebot' },
+                { name: 'Kreativ-Workshop', duration: 0.75, type: 'angebot' },
+                { name: 'Sport & Spiel', duration: 2, type: 'angebot' },
+                { name: 'Freilernzeit', duration: 1, type: 'frei' },
+                { name: 'Projektarbeit', duration: 2, type: 'angebot' },
+            ];
+            
+            const fixedContainer = document.getElementById('fixed-events');
+            const flexibleContainer = document.getElementById('flexible-events');
+            let dragPreview = null;
+            let draggedEventData = null;
+
+            function createDraggableItem(event) {
+                const item = document.createElement('div');
+                item.className = 'draggable-item p-2 rounded-md text-sm';
+                item.textContent = `${event.name} (${event.duration * 60} min)`;
+                item.draggable = true;
+                item.dataset.event = JSON.stringify(event);
+                
+                if (event.type === 'kernzeit') {
+                    item.classList.add('bg-[#2fabdd]', 'text-white');
+                } else {
+                    item.classList.add('bg-[#fbc928]', 'text-[#032459]');
+                }
+                
+                item.addEventListener('dragstart', (e) => {
+                    draggedEventData = event;
+                    e.dataTransfer.setData('application/json', JSON.stringify(event));
+                    e.dataTransfer.effectAllowed = 'copy';
+                });
+
+                item.addEventListener('dragend', () => {
+                    if (dragPreview) {
+                        dragPreview.remove();
+                        dragPreview = null;
+                    }
+                    draggedEventData = null;
+                });
+                return item;
+            }
+
+            availableEvents.forEach(event => {
+                if (event.type === 'kernzeit') {
+                    fixedContainer.appendChild(createDraggableItem(event));
+                } else {
+                    flexibleContainer.appendChild(createDraggableItem(event));
+                }
+            });
+            
+            function displayUserMessage(message, isError = true) {
+                const messageEl = document.getElementById('user-message');
+                messageEl.textContent = message;
+                messageEl.style.color = isError ? '#f45e45' : '#2fabdd';
+                messageEl.style.opacity = '1';
+                setTimeout(() => {
+                    messageEl.style.opacity = '0';
+                }, 3000);
+            }
+
+            function addDropZoneListeners(dropZone) {
+                dropZone.addEventListener('dragenter', (e) => {
+                    e.preventDefault();
+                    if (draggedEventData && !dragPreview) {
+                        dragPreview = document.createElement('div');
+                        dragPreview.id = 'drag-preview';
+                        dragPreview.className = 'event-block';
+                        dropZone.appendChild(dragPreview);
+                    }
+                });
+
+                dropZone.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    if (!draggedEventData || !dragPreview) return;
+                    
+                    dropZone.classList.add('drag-over');
+                    
+                    const dropZoneRect = dropZone.getBoundingClientRect();
+                    const dropY = e.clientY - dropZoneRect.top;
+                    const hour = (dropY / 60) + 8;
+                    const startHour = Math.floor(hour);
+                    const startMinute = Math.round(((hour - startHour) * 60) / 15) * 15;
+                    const startTime = startHour + (startMinute / 60);
+
+                    dragPreview.style.top = `${(startTime - 8) * 60}px`;
+                    dragPreview.style.height = `${draggedEventData.duration * 60}px`;
+                    dragPreview.innerHTML = `<span class="font-semibold">${draggedEventData.name}</span>`;
+                    dragPreview.className = 'event-block'; // Reset classes
+                    dragPreview.classList.add(...eventColors[draggedEventData.type].split(' '));
+                });
+
+                dropZone.addEventListener('dragleave', (e) => {
+                    if (e.target.id === 'user-timeline') {
+                        dropZone.classList.remove('drag-over');
+                        if (dragPreview) {
+                            dragPreview.remove();
+                            dragPreview = null;
+                        }
+                    }
+                });
+
+                dropZone.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    dropZone.classList.remove('drag-over');
+                    if (dragPreview) {
+                        dragPreview.remove();
+                        dragPreview = null;
+                    }
+
+                    const eventData = JSON.parse(e.dataTransfer.getData('application/json'));
+                    const dropZoneRect = dropZone.getBoundingClientRect();
+                    const dropY = e.clientY - dropZoneRect.top;
+                    
+                    const hour = (dropY / 60) + 8;
+                    const startHour = Math.floor(hour);
+                    const startMinute = Math.round(((hour - startHour) * 60) / 15) * 15;
+                    const startTime = startHour + (startMinute / 60);
+                    const endTime = startTime + eventData.duration;
+
+                    if (eventData.type !== 'kernzeit' && (startTime < 14 && endTime > 10)) {
+                        displayUserMessage('Flexible Angebote sind in der Kernzeit (10-14 Uhr) nicht erlaubt.');
+                        return;
+                    }
+                    
+                    const hasCollision = scheduleData.user.events.some(
+                        existingEvent => (startTime < existingEvent.end && endTime > existingEvent.start)
+                    );
+
+                    if (hasCollision) {
+                        displayUserMessage('Dieser Zeitslot ist bereits belegt.');
+                        return;
+                    }
+
+                    scheduleData.user.events.push({
+                        name: eventData.name,
+                        start: startTime,
+                        end: endTime,
+                        type: eventData.type
+                    });
+                    renderSchedule('user', document.getElementById('user-schedule-container'));
+                });
+            }
+
+            // --- Gemini API Logic ---
+            const generateBtn = document.getElementById('generate-project-btn');
+            const projectInput = document.getElementById('project-input');
+            const projectResults = document.getElementById('project-results');
+            const loader = document.getElementById('loader');
+
+            generateBtn.addEventListener('click', async () => {
+                const userInput = projectInput.value.trim();
+                if (!userInput) {
+                    projectResults.innerHTML = '<p class="text-center text-red-500">Bitte gib ein Thema ein.</p>';
+                    return;
+                }
+                loader.classList.remove('hidden');
+                projectResults.innerHTML = '';
+                const prompt = `Du bist ein kreativer Pädagoge an der Alon Schule, die nach dem Marille Konzept arbeitet (innovativ, projektbasiert, realitätsnah). Ein Schüler interessiert sich für das Thema "${userInput}". Generiere 3 kurze, kreative Projektideen, die zu diesem Thema passen und die Philosophie der Schule widerspiegeln. Jede Idee sollte einen Titel, eine kurze Beschreibung (1-2 Sätze) und ein mögliches 'reales Ergebnis' (z.B. 'ein gebauter Prototyp', 'eine Ausstellung für die Schulgemeinschaft', 'ein veröffentlichter Blog-Artikel') haben. Antworte ausschließlich mit einem JSON-Objekt, das ein Array namens 'projekte' enthält. Jedes Objekt im Array soll die Schlüssel 'titel', 'beschreibung' und 'ergebnis' haben.`;
+                const apiKey = "";
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+                try {
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+                    });
+                    if (!response.ok) throw new Error(`API-Fehler: ${response.statusText}`);
+                    const result = await response.json();
+                    loader.classList.add('hidden');
+                    if (result.candidates && result.candidates[0].content && result.candidates[0].content.parts[0]) {
+                        const textResponse = result.candidates[0].content.parts[0].text;
+                        const jsonResponse = JSON.parse(textResponse.replace(/```json|```/g, '').trim());
+                        if (jsonResponse.projekte && jsonResponse.projekte.length > 0) {
+                            jsonResponse.projekte.forEach(project => {
+                                const card = document.createElement('div');
+                                card.className = 'bg-white rounded-xl p-6 border border-gray-200 shadow-sm';
+                                card.innerHTML = `<h4 class="font-bold text-lg mb-2 text-[#032459]">${project.titel}</h4><p class="text-[#5a6a85] mb-4">${project.beschreibung}</p><p class="text-sm font-semibold text-[#2fabdd]">Mögliches Ergebnis: <span class="font-normal text-[#032459]">${project.ergebnis}</span></p>`;
+                                projectResults.appendChild(card);
+                            });
+                        } else { throw new Error("Keine Projekte im erwarteten Format gefunden."); }
+                    } else { throw new Error("Unerwartete API-Antwortstruktur."); }
+                } catch (error) {
+                    loader.classList.add('hidden');
+                    projectResults.innerHTML = `<p class="text-center text-red-500">Entschuldigung, es ist ein Fehler aufgetreten. Bitte versuche es später erneut. (${error.message})</p>`;
+                    console.error(error);
+                }
+            });
+        });
+    </script>
+</body>
+</html>
