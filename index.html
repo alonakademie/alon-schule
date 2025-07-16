@@ -11,7 +11,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <!-- Chosen Palette: Alon Brand Kit -->
     <!-- Application Structure Plan: Die Anwendung ist in vier logische, interaktive Abschnitte unterteilt. Das visuelle Design wurde grundlegend überarbeitet, um einen modernen, sauberen Look mit organischen Formen und klarer Hierarchie zu schaffen, inspiriert vom Nutzer-Feedback. Die Kernfunktionalität bleibt erhalten. -->
-    <!-- Visualization & Content Choices: 1. Kernkonzepte: Das Layout der Karten wurde korrigiert, um Textüberlauf zu verhindern. 2. Projekt-Werkstatt: Behält die Dummy-Funktion bei. 3. Tagesablauf & Baukasten: Visuell an das neue Design angepasst. 4. Globale Stile: Einsatz von CSS-generierten "Blobs". -->
+    <!-- Visualization & Content Choices: 1. Kernkonzepte: Das Layout der Karten wurde korrigiert, um Textüberlauf zu verhindern. 2. Projekt-Werkstatt: Behält die Dummy-Funktion bei. 3. Tagesablauf & Baukasten: Das Kalender-Layout wurde angepasst, um Überlappungen zu verhindern. 4. Globale Stile: Einsatz von CSS-generierten "Blobs". -->
     <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
     <style>
         body {
@@ -146,7 +146,7 @@
             <div class="flex items-center justify-between h-16">
                 <div class="flex-shrink-0">
                     <span class="text-2xl font-bold tracking-wider">
-                        <span class="text-[#032459]">ALON </span><span class="text-[#2fabdd]">AKADEMIE</span>
+                        <span class="text-[#032459]">ALON</span><span class="text-[#2fabdd]">SCHULE</span>
                     </span>
                 </div>
                 <div class="hidden md:block">
@@ -259,13 +259,15 @@
                 const card = document.createElement('div');
                 card.className = 'concept-card';
                 card.innerHTML = `
-                    <div class="bg-[#f5f9fb] w-16 h-16 rounded-full flex items-center justify-center mb-4 text-3xl flex-shrink-0">${concept.icon}</div>
-                    <div class="flex justify-between items-center gap-4 mt-auto">
+                    <div class="flex-grow">
+                        <div class="bg-[#f5f9fb] w-16 h-16 rounded-xl flex items-center justify-center mb-4 text-3xl flex-shrink-0">${concept.icon}</div>
                         <h3 class="font-bold text-lg text-[#032459]">${concept.title}</h3>
-                        <span class="chevron"></span>
                     </div>
                     <div class="details text-left text-[#5a6a85] text-sm mt-4 pt-4 border-t border-gray-200">
                         <p>${concept.text}</p>
+                    </div>
+                    <div class="mt-auto flex justify-end pt-4">
+                         <span class="chevron"></span>
                     </div>
                 `;
                 conceptsGrid.appendChild(card);
@@ -355,13 +357,15 @@
 
                 personData.events.forEach(event => {
                     const top = (event.start - 8) * 60;
-                    let height = (event.end - event.start) * 60;
-                    if (height <= 0) height = 2;
+                    const totalHeight = (event.end - event.start) * 60;
+                    const height = totalHeight > 4 ? totalHeight - 4 : totalHeight; // 4px gap
+                    
+                    if (height <= 0) return;
 
                     const block = document.createElement('div');
                     block.className = 'event-block';
                     block.style.top = `${top}px`;
-                    block.style.height = `${Math.max(20, height)}px`;
+                    block.style.height = `${height}px`;
                     block.classList.add(...eventColors[event.type].split(' '));
                     block.innerHTML = `<span class="font-semibold">${event.name}</span>`;
                     timeline.appendChild(block);
